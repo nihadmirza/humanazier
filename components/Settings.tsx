@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Key, Eye, EyeOff, ExternalLink, Shield, Check, X, Zap, Star, RotateCcw } from 'lucide-react';
 import { WEB_PROVIDERS as PROVIDERS, getProvider, testApiKey, validateApiKey } from '@/lib/providers';
-import { getApiKeys, setApiKeys, clearApiKeys, getModelVariants, setModelVariant } from '@/lib/storage';
+import { getApiKeys, setApiKeys, clearApiKeys, getModelVariants, setModelVariant, setPreferredModel } from '@/lib/storage';
 import { ModelProvider } from '@/lib/types';
 
 interface SettingsProps {
@@ -26,6 +26,7 @@ export default function Settings({ showToast }: SettingsProps) {
   const handleSelectModel = (id: string, model: string) => {
     setModelVariant(id, model);
     setModelVariants(prev => ({ ...prev, [id]: model }));
+    if (keys[id]?.trim()) setPreferredModel(id);
     showToast('success', `${getProvider(id as ModelProvider)?.name || id}: ${model}`);
   };
 
@@ -36,11 +37,24 @@ export default function Settings({ showToast }: SettingsProps) {
       showToast('warning', 'API key cannot be empty');
       return;
     }
-    
+
     const newKeys = { ...keys, [id]: trimmedKey };
     setKeys(newKeys);
     setApiKeys(newKeys);
-    showToast('success', `${getProvider(id as any)?.name || id} API key saved!`);
+    // Activate the provider the user just saved so Humanizer uses it immediately
+    // instead of staying stuck on an older (possibly broken) Gemini key.
+    setPreferredModel(id);
+    showToast('success', `${getProvider(id as any)?.name || id} API key saved & activated!`);
+  };
+
+  const handleRemoveKey = (id: string) => {
+    const newKeys = { ...keys };
+    delete newKeys[id];
+    setKeys(newKeys);
+    setApiKeys(newKeys);
+    const nextProvider = Object.keys(newKeys).find(k => newKeys[k]?.trim());
+    if (nextProvider) setPreferredModel(nextProvider);
+    showToast('info', `${getProvider(id as any)?.name || id} API key removed`);
   };
 
   const handleClearAll = () => { setKeys({}); clearApiKeys(); showToast('info', 'All API keys cleared'); };
@@ -297,6 +311,13 @@ export default function Settings({ showToast }: SettingsProps) {
                     className="px-4 py-3 rounded-lg bg-accent-500 text-white font-medium hover:bg-accent-600 transition-colors">
                     Save
                   </button>
+                  {keys[current.id]?.trim() && (
+                    <button onClick={() => handleRemoveKey(current.id)}
+                      className="px-3 py-3 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 text-sm font-medium transition-colors"
+                      title="Remove this API key">
+                      Remove
+                    </button>
+                  )}
                 </div>
               </>
             )}

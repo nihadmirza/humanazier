@@ -218,18 +218,14 @@ export default function Humanizer({ showToast, onGoToSettings, isFirstVisit }: H
     // "Rudra's Free Usage Model" needs no client API key — the server uses
     // a preconfigured env var. Always allow it as a valid pick.
     if (preferredModel === 'rudra-free') {
-      if (hasKey('gemini')) {
-        providerId = 'gemini';
-      } else {
-        const customKey = Object.keys(keys).find(k => hasKey(k) && k !== 'rudra-free');
-        providerId = customKey ? (customKey as ModelProvider) : 'rudra-free';
-      }
-    } else if (hasKey(preferredModel)) {
-      providerId = preferredModel;
-    } else if (localProviders.includes(preferredModel)) {
+      const customKey = Object.keys(keys).find(k => hasKey(k) && k !== 'rudra-free');
+      providerId = customKey ? (customKey as ModelProvider) : 'rudra-free';
+    } else if (hasKey(preferredModel) || localProviders.includes(preferredModel)) {
       providerId = preferredModel;
     } else {
-      providerId = (Object.keys(keys).find(k => hasKey(k)) || DEFAULT_PROVIDER) as ModelProvider;
+      // Respect the user's explicit provider pick instead of silently falling back
+      // to a stale/broken Gemini key sitting in localStorage.
+      providerId = preferredModel;
     }
     const apiKey =
       keys[providerId]?.trim() ||
@@ -296,7 +292,11 @@ export default function Humanizer({ showToast, onGoToSettings, isFirstVisit }: H
     }
 
     const { providerId, apiKey } = getApiCredentials();
-    if (!apiKey && providerId !== 'rudra-free') { showToast('warning', 'Please add an API key in Settings first, pick Rudra’s Free Usage Model, or enable Privacy Mode for an offline local rewrite.'); return; }
+    if (!apiKey && providerId !== 'rudra-free') {
+      const pName = PROVIDERS.find(p => p.id === providerId)?.name || providerId;
+      showToast('warning', `${pName} üçün API açarı tapılmadı. Settings bölməsindən ${pName} API açarını daxil edib Save edin.`);
+      return;
+    }
 
     setLoading(true);
     setResult(null);
