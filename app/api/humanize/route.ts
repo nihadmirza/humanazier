@@ -225,21 +225,30 @@ export async function POST(request: NextRequest) {
 
     const target = targetScore || 80;
     void target;
-    const chunkSize = model === 'groq' ? 1800 : 2500;
-    // Protect URLs, emails, inline/fenced code, and markdown links from LLM mangling.
+    // Match chunk size to the provider's output token budget.
+    // Azerbaijani uses ~2.5-3.2 tokens per word (agglutinative + Unicode chars),
+    // and Groq free tier caps max_tokens at 900 per request (~220 AZ words / ~450 EN words).
+    const chunkSize = model === 'groq'
+      ? (effectiveLanguage === 'az' ? 220 : 450)
+      : (effectiveLanguage === 'az' ? 900 : 2500);
+    // Protect URLs, emails, inline/fenced code, LaTeX math, and markdown links from LLM mangling.
     const { masked: maskedText, regions: protectedRegions } = isRudraFree
       ? { masked: text, regions: [] }
       : extractRegions(text);
     const chunks = chunkText(maskedText, chunkSize);
 
-    // Language + length/structure anchor note
-    const inputWords = countWords(text);
-    let langNote = '';
-    if (effectiveLanguage === 'az') {
-      langNote = `\n\nVacib: Mətn Azərbaycan dilindədir. Eyni dildə (Azərbaycan dilində), seçilmiş üslubu və abzas quruluşunu qoruyaraq təxminən ${inputWords} söz (±15%) həcmində təbii və axıcı şəkildə yenidən yaz. Mətni qısaltma və tərcümə etmə.`;
-    } else if (effectiveLanguage && effectiveLanguage !== 'en' && effectiveLanguage !== 'auto' && effectiveLanguage !== 'zh-CN' && effectiveLanguage !== 'zh-TW') {
-      langNote = '\n\nIMPORTANT: The text is in a language other than English. Rewrite it in the SAME language. Do NOT translate.';
-    }
+    // Language note helper (computes word target per chunk so multi-chunk inputs never ask for full-doc length)
+    const buildLangNote = (chunkTextStr: string): string => {
+      if (effectiveLanguage === 'az') {
+        const chunkWords = countWords(chunkTextStr);
+        return `\n\nVacib: Mətn Azərbaycan dilindədir. Eyni dildə (Azərbaycan dilində), seçilmiş üslubu və abzas quruluşunu qoruyaraq təxminən ${chunkWords} söz (±15%) həcmində təbii və axıcı şəkildə yenidən yaz. Mətni qısaltma və tərcümə etmə.`;
+      }
+      if (effectiveLanguage && effectiveLanguage !== 'en' && effectiveLanguage !== 'auto' && effectiveLanguage !== 'zh-CN' && effectiveLanguage !== 'zh-TW') {
+        return '\n\nIMPORTANT: The text is in a language other than English. Rewrite it in the SAME language. Do NOT translate.';
+      }
+      return '';
+    };
+    const langNote = buildLangNote(maskedText);
 
     // ==================== LAYER 1: LLM Rewrite (or Rudra Free proxy) ====================
     let humanizedText = '';
@@ -252,10 +261,10 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < chunks.length; i++) {
         const placeholderNote = containsPlaceholders(chunks[i])
           ? (effectiveLanguage === 'az'
-            ? '\n\nMÜTLƏQ: Mətndəki __PROTECT_N__ işarələrini (kod, URL, istinad yerləri) heç bir dəyişiklik etmədən eynilə saxla.'
+            ? '\n\nMÜTLƏQ: Mətndəki __PROTECT_N__ işarələrini (kod, URL, düstur, istinad yerləri) heç bir dəyişiklik etmədən eynilə saxla.'
             : '\n\nCRITICAL: Reproduce every __PROTECT_N__ placeholder token EXACTLY as written with no modifications.')
           : '';
-        const chunkPrompt = chunks[i] + langNote + placeholderNote;
+        const chunkPrompt = chunks[i] + buildLangNote(chunks[i]) + placeholderNote;
         const result = await generateWithProvider(model, effectiveApiKey, systemPrompt, chunkPrompt, {
           model: modelId,
           temperature: params.temperature,

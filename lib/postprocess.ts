@@ -966,6 +966,7 @@ const AZ_AI_LEXICON_PHRASES: { phrase: string; rep: string; trailer?: boolean }[
   { phrase: 'xüsusi əhəmiyyətə malikdir', rep: 'xüsusi yer tutur' },
   { phrase: 'geniş istifadə olunur', rep: 'geniş tətbiq edilir' },
   { phrase: 'müsbət təsir göstərir', rep: 'müsbət təsir edir' },
+  { phrase: 'başqa sözlə desək', rep: 'yəni, ', trailer: true },
   { phrase: 'başqa sözlə', rep: 'yəni, ', trailer: true },
   { phrase: 'bu düsturdan göründüyü kimi', rep: 'bu ifadədən görünür ki, ', trailer: true },
   { phrase: 'əhəmiyyətli dərəcədə', rep: 'xeyli' },

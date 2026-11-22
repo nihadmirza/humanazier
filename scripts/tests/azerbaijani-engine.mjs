@@ -83,8 +83,10 @@ Nəticə etibarilə, bu uyğulama mühüm rol oynayır.
   assert.match(cleaned, /xüsusiyyət/);
   assert.match(cleaned, /\n\n/, 'paragraph breaks must survive postprocessing');
 
-  const stripped = stripAILexiconAZ('Bundan əlavə, bu sahədə mühüm rol oynayır.');
+  const stripped = stripAILexiconAZ('Bundan əlavə, bu sahədə mühüm rol oynayır. Başqa sözlə desək, nəticə yaxşıdır.');
   assert.doesNotMatch(stripped, /həmçinin/i);
+  assert.doesNotMatch(stripped, /Yəni,\s*desək/i);
+  assert.match(stripped, /Yəni, nəticə yaxşıdır/);
 });
 
 test('detectAI scores Azerbaijani AI text lower than natural prose and flags Turkish calques and quantifiers', () => {
